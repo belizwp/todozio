@@ -52,3 +52,5 @@ libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-testkit"      % akkaVersion     % Test,
   "com.h2database"     % "h2"                % "1.4.200"       % Test,
 )
+
+testFrameworks := Seq(new TestFramework("zio.test.sbt.ZTestFramework"))
