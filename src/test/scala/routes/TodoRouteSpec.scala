@@ -1,7 +1,6 @@
 package routes
 
 import akka.http.scaladsl.model._
-import akka.http.scaladsl.testkit.RouteTest
 import api.{Api, ApiRoute}
 import base.UnitSpec
 import zio.blocking._
@@ -12,7 +11,7 @@ object TodoRouteSpec extends UnitSpec {
 
   private val GET_TODO_LIST = ApiRoute("GET", "/v1/todos")
 
-  val specs = Seq(
+  val specs = suite("TodoRouteSpec")(
     testM(GET_TODO_LIST.route + " should return 200") {
       for {
         routes      <- Api.routes

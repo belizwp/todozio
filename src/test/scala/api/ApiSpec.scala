@@ -16,8 +16,16 @@ object ApiSpec extends DefaultRunnableSpec {
         TodoServiceMock.test
     ) >>> Api.live.passthrough ++ Blocking.live ++ Clock.live
 
-  private val specs = TodoRouteSpec.specs
+  private val apiSpecs = suite("Api")(
+    TodoRouteSpec.specs
+  )
 
-  override def spec = suite("Api")(specs: _*).provideLayer(env)
+  private val serviceSpecs = suite("Service")(
+    TodoRouteSpec.specs
+  )
+
+  private val specs = suite("Tests")(apiSpecs, serviceSpecs)
+
+  override def spec = specs.provideLayer(env)
 
 }
