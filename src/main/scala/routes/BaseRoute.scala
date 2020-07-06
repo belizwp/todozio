@@ -1,13 +1,5 @@
 package routes
 
-import interop.akka.ZioSupport
-import zio.Runtime
-import zio.internal.Platform
+import akka.http.interop.ZIOSupport
 
-trait BaseRoute extends ZioSupport {
-
-  override val environment: Unit = Runtime.default.environment
-
-  override val platform: Platform = Runtime.default.platform
-
-}
+trait BaseRoute extends ZIOSupport

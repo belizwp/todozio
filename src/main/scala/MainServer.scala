@@ -1,56 +1,47 @@
-import akka.Done
-import akka.actor.{ActorSystem, CoordinatedShutdown}
-import akka.http.scaladsl.Http
-import com.typesafe.scalalogging.LazyLogging
-import repositories.DatabaseProfile
-import routes.TodoRoute
+import akka.actor.ActorSystem
+import akka.http.interop.HttpServer
+import akka.http.scaladsl.server.Route
+import api.Api
+import com.typesafe.config.{Config, ConfigFactory}
+import configs.AppConfig
+import services.impl.TodoServiceImpl
+import slick.interop.zio.DatabaseProvider
+import zio._
+import zio.config.typesafe.TypesafeConfig
+import zio.console.{Console, putStrLn}
 
-import scala.concurrent.ExecutionContextExecutor
-import scala.concurrent.duration._
+object MainServer extends App {
 
-object MainServer extends LazyLogging {
+  def run(args: List[String]): ZIO[zio.ZEnv, Nothing, ExitCode] =
+    ZIO(ConfigFactory.load.resolve)
+      .flatMap(rawConfig => program.provideCustomLayer(prepareEnvironment(rawConfig)))
+      .as(ExitCode.success)
+      .catchAll(error => putStrLn(error.getMessage).as(ExitCode.failure))
 
-  implicit val system: ActorSystem = ActorSystem("todozio")
+  private val program: ZIO[HttpServer with Console, Throwable, Unit] =
+    HttpServer.start.tapM(_ => putStrLn(s"Server online.")).useForever
 
-  implicit val ec: ExecutionContextExecutor = system.dispatcher
+  private def prepareEnvironment(rawConfig: Config): TaskLayer[HttpServer] = {
+    val configLayer    = TypesafeConfig.fromTypesafeConfig(rawConfig, AppConfig.descriptor)
+    val dbConfigLayer  = ZLayer.fromEffect(ZIO(rawConfig.getConfig("db")))
+    val dbBackendLayer = ZLayer.succeed(slick.jdbc.PostgresProfile.backend)
+    val apiConfigLayer = configLayer.map(c => Has(c.get.api))
 
-  class LiveEnv extends DatabaseProfile
-
-  val env = new LiveEnv()
-
-  def main(args: Array[String]): Unit = {
-    val shut   = CoordinatedShutdown(system)
-    val routes = new TodoRoute(env).route
-
-    (for {
-      bind <- Http().bindAndHandle(routes, "0.0.0.0", 9000)
-    } yield (bind, shut)).foreach {
-      case (binding, shutdown) =>
-        logger.info("start server")
-
-        shutdown.addTask(
-          CoordinatedShutdown.PhaseServiceUnbind,
-          "http-unbind"
-        ) { () =>
-          logger.info("unbind")
-          binding.unbind().map(_ => Done)
-        }
-
-        shutdown.addTask(
-          CoordinatedShutdown.PhaseServiceRequestsDone,
-          "http-graceful-terminate"
-        ) { () =>
-          logger.info("terminate")
-          binding.terminate(10.seconds).map(_ => Done)
-        }
-
-        shutdown.addTask(
-          CoordinatedShutdown.PhaseServiceStop, "http-shutdown"
-        ) { () =>
-          logger.info("shutdown")
-          Http().shutdownAllConnectionPools().map(_ => Done)
-        }
+    val actorSystemLayer: TaskLayer[Has[ActorSystem]] = ZLayer.fromManaged {
+      ZManaged.make(ZIO(ActorSystem("todozio-system")))(s =>
+        ZIO.fromFuture(_ => s.terminate()).either
+      )
     }
+
+    val dbLayer = (dbConfigLayer ++ dbBackendLayer) >>> DatabaseProvider.live >>>
+      TodoServiceImpl.live
+
+    val apiLayer: TaskLayer[Api] = (apiConfigLayer ++ dbLayer) >>> Api.live
+
+    val routesLayer: ZLayer[Api, Nothing, Has[Route]] =
+      ZLayer.fromService(_.routes)
+
+    (actorSystemLayer ++ apiConfigLayer ++ (apiLayer >>> routesLayer)) >>> HttpServer.live
   }
 
 }
