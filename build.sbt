@@ -30,6 +30,7 @@ libraryDependencies ++= Seq(
   "dev.zio"                    %% "zio-logging-slf4j"     % zioLoggingVersion,
   "com.typesafe.akka"          %% "akka-http"             % akkaHttpVersion,
   "com.typesafe.akka"          %% "akka-stream"           % akkaVersion,
+  "com.typesafe.akka"          %% "akka-actor-typed"      % akkaVersion,
   "com.typesafe.slick"         %% "slick"                 % slickVersion,
   "com.typesafe.slick"         %% "slick-hikaricp"        % slickVersion,
   "com.typesafe.scala-logging" %% "scala-logging"         % "3.9.2",
