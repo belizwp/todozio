@@ -6,6 +6,7 @@ import com.typesafe.config.{Config, ConfigFactory}
 import configs.AppConfig
 import services.impl.TodoServiceImpl
 import slick.interop.zio.DatabaseProvider
+import subscribers.{Subscriber, TodoSub}
 import zio._
 import zio.config.typesafe.TypesafeConfig
 import zio.console.{Console, putStrLn}
@@ -21,7 +22,7 @@ object MainServer extends App {
   private val program: ZIO[HttpServer with Console, Throwable, Unit] =
     HttpServer.start.tapM(_ => putStrLn(s"Server online.")).useForever
 
-  private def prepareEnvironment(rawConfig: Config): TaskLayer[HttpServer] = {
+  private def prepareEnvironment(rawConfig: Config): TaskLayer[HttpServer with Subscriber] = {
     val configLayer    = TypesafeConfig.fromTypesafeConfig(rawConfig, AppConfig.descriptor)
     val dbConfigLayer  = ZLayer.fromEffect(ZIO(rawConfig.getConfig("db")))
     val dbBackendLayer = ZLayer.succeed(slick.jdbc.PostgresProfile.backend)
@@ -41,7 +42,7 @@ object MainServer extends App {
     val routesLayer: ZLayer[Api, Nothing, Has[Route]] =
       ZLayer.fromService(_.routes)
 
-    (actorSystemLayer ++ apiConfigLayer ++ (apiLayer >>> routesLayer)) >>> HttpServer.live
+    (actorSystemLayer ++ apiConfigLayer ++ (apiLayer >>> routesLayer)) >>>  TodoSub.live ++ HttpServer.live
   }
 
 }

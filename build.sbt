@@ -45,6 +45,7 @@ libraryDependencies ++= Seq(
   "com.beachape"               %% "enumeratum"            % enumeratumVersion,
   "com.beachape"               %% "enumeratum-circe"      % enumeratumVersion,
   "ch.qos.logback"              % "logback-classic"       % "1.2.3",
+  "io.kubemq.sdk"               % "kubemq-sdk-Java"       % "1.0.2",
 )
 
 libraryDependencies ++= Seq(
